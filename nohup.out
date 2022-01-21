@@ -1,0 +1,8 @@
+/u/as3ek/.conda/envs/open_clip/lib/python3.6/site-packages/torch/cuda/__init__.py:52: UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /opt/conda/conda-bld/pytorch_1607370120218/work/c10/cuda/CUDAFunctions.cpp:100.)
+  return torch._C._cuda_getDeviceCount() > 0
+Traceback (most recent call last):
+  File "src/training/main.py", line 20, in <module>
+    from training.data import get_data
+  File "/u/as3ek/github/open_clip/src/training/data.py", line 23, in <module>
+    from webdataset.utils import identity
+ModuleNotFoundError: No module named 'webdataset'

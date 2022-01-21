@@ -34,19 +34,19 @@ def parse_args():
     parser.add_argument(
         "--csv-separator",
         type=str,
-        default="\t",
+        default=",",
         help="For csv-like datasets, which separator to use."
     )
     parser.add_argument(
         "--csv-img-key",
         type=str,
-        default="filepath",
+        default="img_path",
         help="For csv-like datasets, the name of the key for the image paths."
     )
     parser.add_argument(
         "--csv-caption-key",
         type=str,
-        default="title",
+        default="caption",
         help="For csv-like datasets, the name of the key for the captions."
     )
     parser.add_argument(
@@ -82,18 +82,22 @@ def parse_args():
     parser.add_argument(
         "--epochs", type=int, default=32, help="Number of epochs to train for."
     )
-    parser.add_argument("--lr", type=float, default=None, help="Learning rate.")
-    parser.add_argument("--beta1", type=float, default=None, help="Adam beta 1.")
-    parser.add_argument("--beta2", type=float, default=None, help="Adam beta 2.")
-    parser.add_argument("--eps", type=float, default=None, help="Adam epsilon.")
+    parser.add_argument("--lr", type=float, default=None,
+                        help="Learning rate.")
+    parser.add_argument("--beta1", type=float,
+                        default=None, help="Adam beta 1.")
+    parser.add_argument("--beta2", type=float,
+                        default=None, help="Adam beta 2.")
+    parser.add_argument("--eps", type=float, default=None,
+                        help="Adam epsilon.")
     parser.add_argument("--wd", type=float, default=0.2, help="Weight decay.")
     parser.add_argument(
         "--warmup", type=int, default=10000, help="Number of steps to warmup for."
     )
     parser.add_argument("--use-bn-sync",
-        default=False,
-        action="store_true",
-        help="Whether to use batch norm sync.")
+                        default=False,
+                        action="store_true",
+                        help="Whether to use batch norm sync.")
     parser.add_argument(
         "--gpu",
         type=int,
@@ -117,10 +121,10 @@ def parse_args():
         help="Always save the most recent model trained to epoch_latest.pt.",
     )
     parser.add_argument(
-        "--zeroshot-frequency", type=int, default=2, help="How often to run zero shot."
+        "--zeroshot-frequency", type=int, default=0, help="How often to run zero shot."
     )
     parser.add_argument(
-        "--regression-frequency", type=int, default=2, help="How often to run zero shot."
+        "--regression-frequency", type=int, default=0, help="How often to run zero shot."
     )
     parser.add_argument(
         "--resume",
@@ -164,7 +168,7 @@ def parse_args():
     )
     parser.add_argument(
         "--report-to",
-        default='',
+        default='wandb',
         type=str,
         help="Options are ['wandb', 'tensorboard', 'wandb,tensorboard']"
     )

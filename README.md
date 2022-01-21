@@ -41,7 +41,16 @@ python src/scripts/coco_preprocess.py --split val --data-root /path/to/coco/data
 ### Start training:
 
 ```bash
-python -u src/training/main.py --train-data="/path/to/json_data.csv" --val-data="/path/to/val_coco.csv"
+python -u src/training/main.py \
+    --train-data="/path/to/json_data.csv"  \
+    --val-data="/path/to/val_coco.csv"  \
+    --warmup 10000 \
+    --batch-size=128 \
+    --lr=5e-4 \
+    --wd=0.1 \
+    --epochs=30 \
+    --workers=4 \
+    --model RN50
 ```
 
 Logging will be done on wandb

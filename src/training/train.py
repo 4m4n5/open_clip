@@ -4,7 +4,7 @@ import json
 import numpy as np
 
 import torch
-import torch.nn as nn
+from torch import nn, einsum
 
 from torch.cuda.amp import autocast
 import torch.nn.functional as F
@@ -130,8 +130,8 @@ def get_loss_lite(model, images, texts, args):
         neg_scores = einsum("n d, n d -> n", image_features,
                             neg_text_features) * logit_scale
 
-    Ej = -F.softplus(-pos_score).mean()
-    Em = F.softplus(neg_score).mean()
+    Ej = -F.softplus(-pos_scores).mean()
+    Em = F.softplus(neg_scores).mean()
     total_loss = Em - Ej
 
     return total_loss

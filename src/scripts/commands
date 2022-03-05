@@ -1,0 +1,26 @@
+python -u src/training/main.py \
+    --train-data="/path/to/json_data.csv"  \
+    --val-data="/path/to/val_coco.csv"  \
+    --warmup 10000 \
+    --batch-size=128 \
+    --lr=5e-4 \
+    --wd=0.1 \
+    --epochs=30 \
+    --workers=4 \
+    --model RN50
+
+
+## Finetune with cliplite
+python -u src/training/main.py \
+    --train-data="/u/as3ek/github/open_clip/csvs/train_coco.csv"  \
+    --val-data="/u/as3ek/github/open_clip/csvs/val_coco.csv"  \
+    --warmup 5000 \
+    --batch-size=128 \
+    --lr=3e-5 \
+    --wd=0.1 \
+    --epochs=10 \
+    --workers=4 \
+    --model RN50 \
+    --openai-pretrained True \
+    --loss-type cliplite \
+    --num-negs all

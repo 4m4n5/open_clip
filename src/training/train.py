@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from torch.cuda.amp import autocast
+import torch.nn.functional as F
 import torch.distributed as dist
 
 from .zero_shot import zero_shot_eval
@@ -17,8 +18,10 @@ import wandb
 
 import logging
 
+
 def is_master(args):
     return (not args.distributed) or args.gpu == 0
+
 
 def get_loss(model, images, texts, loss_img, loss_txt, args):
     image_features, text_features, logit_scale = model(images, texts)
@@ -40,12 +43,12 @@ def get_loss(model, images, texts, loss_img, loss_txt, args):
         all_image_features = torch.cat(
             [image_features]
             + gathered_image_features[:rank]
-            + gathered_image_features[rank + 1 :]
+            + gathered_image_features[rank + 1:]
         )
         all_text_features = torch.cat(
             [text_features]
             + gathered_text_features[:rank]
-            + gathered_text_features[rank + 1 :]
+            + gathered_text_features[rank + 1:]
         )
 
         # this is needed to send gradients back everywhere.
@@ -67,9 +70,76 @@ def get_loss(model, images, texts, loss_img, loss_txt, args):
     return total_loss
 
 
+def get_loss_lite(model, images, texts, args):
+    image_features, text_features, logit_scale = model(images, texts)
+    logit_scale = logit_scale.mean()
+    if args.distributed and args.aggregate:
+        world_size = dist.get_world_size()
+        rank = dist.get_rank()
+
+        # We gather tensors from all gpus to get more negatives to contrast with.
+        gathered_image_features = [
+            torch.zeros_like(image_features) for _ in range(world_size)
+        ]
+        gathered_text_features = [
+            torch.zeros_like(text_features) for _ in range(world_size)
+        ]
+        dist.all_gather(gathered_image_features, image_features)
+        dist.all_gather(gathered_text_features, text_features)
+
+        all_image_features = torch.cat(
+            [image_features]
+            + gathered_image_features[:rank]
+            + gathered_image_features[rank + 1:]
+        )
+        all_text_features = torch.cat(
+            [text_features]
+            + gathered_text_features[:rank]
+            + gathered_text_features[rank + 1:]
+        )
+
+        # Use one neg
+        neg_text_features = torch.cat(
+            (all_text_features[1:], all_text_features[0].unsqueeze(0)), dim=0
+        )
+
+        pos_scores = einsum("n d, n d -> n", all_image_features,
+                            all_text_features) * logit_scale
+        neg_scores = einsum("n d, n d -> n", all_image_features,
+                            neg_text_features) * logit_scale
+
+        # Use all negs
+        # logits_per_image = logit_scale * all_image_features @ all_text_features.t()
+        # N = logits_per_image.size(0)
+        #
+        # diag_elements = torch.diagonal(logits_per_image)
+        # pos_scores = diag_elements.view(-1)
+        #
+        # # https://www.codegrepper.com/code-examples/python/pytorch+get+non+diag+element
+        # offdiag_elements = logits_per_image.flatten()[1:].view(
+        #     N - 1, N + 1)[:, :-1].reshape(N, N - 1)
+        # neg_scores = offdiag_elements.view(-1)
+
+    else:
+        neg_text_features = torch.cat(
+            (text_features[1:], text_features[0].unsqueeze(0)), dim=0
+        )
+
+        pos_scores = einsum("n d, n d -> n", image_features,
+                            text_features) * logit_scale
+        neg_scores = einsum("n d, n d -> n", image_features,
+                            neg_text_features) * logit_scale
+
+    Ej = -F.softplus(-pos_score).mean()
+    Em = F.softplus(neg_score).mean()
+    total_loss = Em - Ej
+
+    return total_loss
+
+
 def train(model, data, epoch, optimizer, scaler, scheduler, args, tb_writer=None):
     os.environ["WDS_EPOCH"] = str(epoch)
-    
+
     model.train()
 
     dataloader, sampler = data['train'].dataloader,  data['train'].sampler
@@ -104,13 +174,23 @@ def train(model, data, epoch, optimizer, scaler, scheduler, args, tb_writer=None
         # with automatic mixed precision.
         if args.precision == "amp":
             with autocast():
-                total_loss = get_loss(model, images, texts, loss_img, loss_txt, args)
+                if args.loss_type == "clip":
+                    total_loss = get_loss(
+                        model, images, texts, loss_img, loss_txt, args)
+                elif args.loss_type == "cliplite":
+                    total_loss = get_loss_lite(
+                        model, images, texts, args)
                 scaler.scale(total_loss).backward()
                 scaler.step(optimizer)
             scaler.update()
 
         else:
-            total_loss = get_loss(model, images, texts, loss_img, loss_txt, args)
+            if args.loss_type == "clip":
+                total_loss = get_loss(
+                    model, images, texts, loss_img, loss_txt, args)
+            elif args.loss_type == "cliplite":
+                total_loss = get_loss_lite(
+                    model, images, texts, args)
             total_loss.backward()
             optimizer.step()
 
@@ -151,7 +231,7 @@ def train(model, data, epoch, optimizer, scaler, scheduler, args, tb_writer=None
 def evaluate(model, data, epoch, args, tb_writer=None, steps=None):
     if not is_master(args):
         return
-    
+
     model.eval()
 
     zero_shot_metrics = zero_shot_eval(model, data, epoch, args)
@@ -227,10 +307,12 @@ def evaluate(model, data, epoch, args, tb_writer=None, steps=None):
 
 def get_metrics(image_features, text_features, logit_scale):
     metrics = {}
-    logits_per_image = (logit_scale * image_features @ text_features.t()).detach().cpu()
+    logits_per_image = (logit_scale * image_features @
+                        text_features.t()).detach().cpu()
     logits_per_text = logits_per_image.t().detach().cpu()
 
-    logits = {"image_to_text": logits_per_image, "text_to_image": logits_per_text}
+    logits = {"image_to_text": logits_per_image,
+              "text_to_image": logits_per_text}
     ground_truth = torch.arange(len(text_features)).view(-1, 1)
 
     for name, logit in logits.items():

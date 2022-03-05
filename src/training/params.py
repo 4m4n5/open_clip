@@ -32,6 +32,18 @@ def parse_args():
         help="Which type of dataset to process."
     )
     parser.add_argument(
+        "--loss-type",
+        choices=["clip", "cliplite"],
+        default="clip",
+        help="Which type of loss to use."
+    )
+    parser.add_argument(
+        "--num-negs",
+        choices=["all", "one"],
+        default="all",
+        help="Number of negs to use for cliplite."
+    )
+    parser.add_argument(
         "--csv-separator",
         type=str,
         default=",",

@@ -30,9 +30,13 @@ export PYTHONPATH="$PYTHONPATH:$PWD/src"
 python src/scripts/json_preprocess.py 
 ```
 
-#### Preprocess validation data from COCO
+#### Preprocess training and validation for COCO
 
-The following commands will create a csv file `csvs/val_coco.csv` which we will use for validation.
+The following commands will create csv files `csvs/val_coco.csv` and `csvs/train_coco.csv` which we will use for training and validation.
+
+```bash
+python src/scripts/coco_preprocess.py --split train --data-root /path/to/coco/dataset/
+```
 
 ```bash
 python src/scripts/coco_preprocess.py --split val --data-root /path/to/coco/dataset/
